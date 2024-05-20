@@ -1,95 +1,127 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client"
+import React, { useState } from 'react';
 
-export default function Home() {
+import 'react-mirt/dist/css/react-mirt.css';
+import './globals.css';
+function AudioTrimmer() {
+  const [audioFile, setAudioFile] = useState(null);
+  const [start, setStart] = useState(0);
+  const [end, setEnd] = useState(0);
+  const [trimmedAudioBlob, setTrimmedAudioBlob] = useState(null);
+  const [error, setError] = useState(null);
+  const [isTrimming, setIsTrimming] = useState(false); // Track trimming process
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile && selectedFile.type.startsWith('audio/')) {
+      setAudioFile(selectedFile);
+    } else {
+      alert('Please select an audio file.');
+    }
+  };
+
+  const handleStartChange = (e) => {
+    setStart(parseInt(e.target.value));
+  };
+
+  const handleEndChange = (e) => {
+    setEnd(parseInt(e.target.value));
+  };
+
+  const handleTrim = async () => {
+    if (!audioFile) {
+      alert('Please select an audio file.');
+      return;
+    }
+    if (start >= end) {
+      alert('End time must be greater than start time.');
+      return;
+    }
+
+    setIsTrimming(true); // Set trimming state to true
+
+    const audio = new Audio(URL.createObjectURL(audioFile));
+    audio.onloadedmetadata = () => {
+      if (end > audio.duration) {
+        setError('End time cannot exceed the original length of the audio.');
+        setIsTrimming(false); // Reset trimming state
+        return;
+      }
+      setError(null);
+      trimAudio(audio);
+    };
+  };
+
+  const trimAudio = async (audio) => {
+    const duration = end - start;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    const audioCtx = new AudioContext();
+    const source = audioCtx.createMediaElementSource(audio);
+    const dest = audioCtx.createMediaStreamDestination();
+    source.connect(dest);
+    const mediaRecorder = new MediaRecorder(dest.stream);
+    const chunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      chunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'audio/mp3' });
+      setTrimmedAudioBlob(blob);
+      setIsTrimming(false);
+    };
+
+    mediaRecorder.start();
+    audio.currentTime = start;
+    audio.play();
+    await new Promise((resolve) => setTimeout(resolve, duration * 1000));
+    mediaRecorder.stop();
+  };
+
+  const handleDownload = () => {
+    if (trimmedAudioBlob) {
+      const url = URL.createObjectURL(trimmedAudioBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'trimmed_audio.mp3';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      alert('No trimmed audio to download.');
+    }
+  };
+
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.js</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
+    <div className='all'>
+        <h1>Audio Cutter</h1>
+        <h3>Free editor to trim and cut any audio file online</h3>
+      <input type="file" accept="audio/*" onChange={handleFileChange} />
+      <br />
+      <div>
+        Start Time: <input type="number" value={start} onChange={handleStartChange} />
       </div>
-
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
+      <div>
+        End Time: <input type="number" value={end} onChange={handleEndChange} />
       </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+        <br />
+      <button onClick={handleTrim} disabled={isTrimming}>Trim Audio</button>
+      <br />
+      <button onClick={handleDownload} disabled={isTrimming}>Download Trimmed Audio</button>
+      <br />
+      {isTrimming && <div>Please wait...</div>}
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      {trimmedAudioBlob && (
+        <audio controls>
+          <source src={URL.createObjectURL(trimmedAudioBlob)} type="audio/mp3" />
+          Your browser does not support the audio element.
+        </audio>
+      )}
+    </div>
   );
 }
+
+export default AudioTrimmer;
